@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LACING | Joint Prompt and KV-Cache Compression for Multi-Turn LLM Agents</title>
+  <meta name="description" content="LACING jointly compresses prompt text and KV caches for multi-turn LLM agents, reducing backbone GPU cost while preserving task success.">
+  <meta name="theme-color" content="#b65c24">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="LACING: Joint Prompt and KV-Cache Compression">
+  <meta property="og:description" content="One policy for text and KV memory. Lower cumulative inference cost for multi-turn LLM agents.">
+  <meta property="og:url" content="https://stringing.github.io/LACING-project-page/">
+  <meta property="og:image" content="https://stringing.github.io/LACING-project-page/static/images/compression-routes.png">
+  <meta property="og:image:alt" content="Prompt-only, KV-only, serial, and LACING compression routes over the same agent history.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="LACING: Joint Prompt and KV-Cache Compression">
+  <meta name="twitter:description" content="One policy for text and KV memory in multi-turn LLM agents.">
+  <meta name="twitter:image" content="https://stringing.github.io/LACING-project-page/static/images/compression-routes.png">
+  <link rel="canonical" href="https://stringing.github.io/LACING-project-page/">
+  <link rel="icon" href="static/images/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+  <script src="static/js/index.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#overview">Skip to content</a>
+
+  <header class="publication-header">
+    <div class="page-container">
+      <h1 class="publication-title">
+        <span class="project-name">LACING</span>
+        <span class="paper-title">Joint Prompt and KV-Cache Compression<br class="desktop-break"> for Multi-Turn LLM Agents</span>
+      </h1>
+      <p class="publication-tagline">One policy for text and KV memory.<br class="mobile-break"> Savings across the full agent trajectory.</p>
+      <div class="publication-links" aria-label="Project resources">
+        <button class="resource-link unavailable" type="button" disabled title="The paper is not yet publicly available.">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6"/></svg>
+          Paper <span class="resource-status">soon</span>
+        </button>
+        <button class="resource-link unavailable" type="button" disabled title="The research code is not yet publicly available.">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 20"/></svg>
+          Code <span class="resource-status">soon</span>
+        </button>
+        <a class="resource-link" href="#citation">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H6a2 2 0 0 0-2 2v3h5v9H3m18-14h-3a2 2 0 0 0-2 2v3h5v9h-6"/></svg>
+          BibTeX
+        </a>
+        <a class="resource-link primary-link" href="#results">Explore results <span aria-hidden="true">&darr;</span></a>
+      </div>
+      <nav class="section-nav" aria-label="Page sections">
+        <a href="#overview">Overview</a>
+        <a href="#method">Method</a>
+        <a href="#results">Results</a>
+        <a href="#findings">Findings</a>
+        <a href="#retrieval">Retrieval</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="page-section teaser-section" id="overview" aria-labelledby="overview-title">
+      <div class="page-container">
+        <h2 id="overview-title">The same history. One joint choice.</h2>
+        <p class="section-lead">A fact can be worth keeping as text without retaining all of its cached states.
+          LACING compares these choices together, before either view is changed.</p>
+        <figure class="paper-figure teaser-figure">
+          <a class="figure-link" href="static/images/compression-routes.svg" data-zoom data-caption="Compression routes over the same agent history." aria-label="Enlarge compression routes figure">
+            <img src="static/images/compression-routes.svg" width="1320" height="550" alt="Prompt-only removes text. KV-only reduces cached states. Serial reduces KV only for text survivors. LACING jointly chooses preservation, text deletion, or KV reduction for each memory unit." fetchpriority="high">
+            <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+          </a>
+          <figcaption>Serial compression commits to text deletion first. LACING can instead preserve that text with reduced KV support.</figcaption>
+        </figure>
+
+        <div class="metric-grid" aria-label="Headline results relative to Full-cache">
+          <div class="metric-card">
+            <p class="metric-value">7.5&ndash;14.0<span>%</span></p>
+            <p class="metric-label">lower backbone GPU cost</p>
+          </div>
+          <div class="metric-card">
+            <p class="metric-value">26&ndash;55<span>%</span></p>
+            <p class="metric-label">lower mean peak KV memory</p>
+          </div>
+          <div class="metric-card">
+            <p class="metric-value">98.9<span>%</span></p>
+            <p class="metric-label">overall task-success retention</p>
+          </div>
+        </div>
+        <p class="metric-note">Relative to Full-cache across two agent backbones and two benchmarks. Overall task-success retention compares aggregate success rates; it is distinct from paired utility preservation (UP).</p>
+      </div>
+    </section>
+
+    <section class="page-section alternate" id="abstract" aria-labelledby="abstract-title">
+      <div class="reading-container">
+        <h2 id="abstract-title">Abstract</h2>
+        <div class="abstract-text">
+          <p>Across multi-turn agent interactions with Web sites, services, and software tools, accumulated history increases prompt length and KV-cache memory. Independent compression overlooks both the coupling between these views and its effects on later turns. We formulate joint compression as a sequential decision problem over persistent memory units. LACING uses stable anchors to link each unit's text to its KV entries across heads. Conditioned on textual features and evolving KV state, one categorical policy selects preservation, text deletion, or headwise KV reduction.</p>
+          <p>We train the policy online from task-level rollout groups to minimize cumulative backbone GPU cost subject to utility retention relative to a fixed full-cache reference. Separate cost and utility credit mechanisms assign downstream savings and progress regressions to individual compression actions.</p>
+          <p>We evaluate LACING with two backbones on Terminal-Bench 2.1 and a 200-task subset of SWE-bench Verified. Across all four settings, it achieves higher task success than the four compression baselines. Relative to full-cache, it reduces backbone GPU-seconds by 7.5&ndash;14.0% and mean peak GPU-resident KV memory by 26&ndash;55%, while preserving 98.9% of full-cache's overall task-success rate. In additional shared-context tests on SCBench, LACING retains over 92% of full-cache successes on compression-sensitive key-value and code retrieval tasks.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section" id="method" aria-labelledby="method-title">
+      <div class="page-container">
+        <h2 id="method-title">How LACING works</h2>
+        <p class="section-lead">Stable memory identities connect two views of history. A small shared policy learns which view to reduce, with the backbone frozen.</p>
+        <figure class="paper-figure">
+          <a class="figure-link" href="static/images/method-overview.svg" data-zoom data-caption="Anchored units, a shared decision space, and the resulting text and KV state." aria-label="Enlarge LACING method overview">
+            <img src="static/images/method-overview.svg" width="1962" height="944" loading="lazy" decoding="async" alt="Stable aid anchors connect historical and new memory units to a shared policy. Keep preserves both views, evict reduces headwise KV, and drop removes text and KV while surviving units retain their anchors.">
+            <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+          </a>
+          <figcaption>All units are scored from the same pre-compression state. Selected actions are committed together.</figcaption>
+        </figure>
+        <div class="explanation-grid">
+          <article class="explanation-card">
+            <span class="step-number">01</span>
+            <h3>Anchor both views</h3>
+            <p>A persistent <code>aid</code> links each memory unit's text and KV entries as text spans shift and cache coverage changes.</p>
+          </article>
+          <article class="explanation-card">
+            <span class="step-number">02</span>
+            <h3>Choose one action</h3>
+            <p>A shared policy reads a 529-dimensional representation of content and current state. Feasible <code>keep</code>, <code>drop</code>, and <code>evict</code> actions compete in one categorical distribution.</p>
+          </article>
+          <article class="explanation-card">
+            <span class="step-number">03</span>
+            <h3>Learn from later turns</h3>
+            <p>Separate cost and utility credit connect compression actions to downstream resource savings and progress regressions across the trajectory.</p>
+          </article>
+        </div>
+        <div class="action-strip" aria-label="Compression action semantics">
+          <p><code>keep</code><span>Preserve text and current KV.</span></p>
+          <p><code>drop</code><span>Remove the unit's text and remaining KV.</span></p>
+          <p><code>evict</code><span>Halve each head's KV support while retaining every token in at least one head.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section alternate" id="results" aria-labelledby="results-title">
+      <div class="page-container">
+        <h2 id="results-title">Near-full-cache success. Lower trajectory cost.</h2>
+        <p class="section-lead">Across all four agent settings, LACING stays within 1.2 percentage points of Full-cache success and leads the tested compressors in task success.</p>
+        <figure class="paper-figure">
+          <a class="figure-link" href="static/images/quality-efficiency.svg" data-zoom data-caption="Task success versus backbone cost and peak KV, normalized to Full-cache." aria-label="Enlarge quality-efficiency trade-offs">
+            <img src="static/images/quality-efficiency.svg" width="1242" height="576" loading="lazy" decoding="async" alt="Eight scatter panels compare success against cost and peak KV for six methods on Qwen and Devstral, each on Terminal-Bench and SWE-bench. LACING remains near Full-cache success while lowering both resources.">
+            <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+          </a>
+          <figcaption>Resource axes are relative to Full-cache at 100%. Shading marks five percentage points below Full-cache success.</figcaption>
+        </figure>
+
+        <div class="filterable-results">
+          <div class="result-filters" hidden>
+            <label for="agent-backbone">Backbone
+              <select id="agent-backbone" data-filter="backbone">
+                <option value="qwen">Qwen3-Coder-30B-A3B-Instruct</option>
+                <option value="devstral">Devstral-Small-2-24B</option>
+              </select>
+            </label>
+            <label for="agent-benchmark">Benchmark
+              <select id="agent-benchmark" data-filter="benchmark">
+                <option value="terminal">Terminal-Bench 2.1</option>
+                <option value="swe">SWE-bench Verified</option>
+              </select>
+            </label>
+          </div>
+          <p class="sr-only" data-filter-status role="status"></p>
+          <div class="result-panel" data-backbone="qwen" data-benchmark="terminal">
+            <h3>Qwen3-Coder &middot; Terminal-Bench 2.1 <span class="task-count">89 tasks</span></h3>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Qwen Terminal-Bench results">
+              <table class="results-table agent-table">
+                <caption class="sr-only">Qwen3-Coder-30B-A3B-Instruct on Terminal-Bench 2.1. Mean and standard deviation over three runs.</caption>
+                <thead><tr><th scope="col">Method</th><th scope="col">Success (%) &uarr;</th><th scope="col">UP (%) &uarr;</th><th scope="col">GPU-s/task &darr;</th><th scope="col">Peak KV (GiB) &darr;</th></tr></thead>
+                <tbody>
+                  <tr class="reference-row"><th scope="row">Full-cache</th><td>11.24 &plusmn; 1.12</td><td>100.00 &plusmn; 0.00</td><td>32.37 &plusmn; 0.63</td><td>1.00 &plusmn; 0.00</td></tr>
+                  <tr><th scope="row">LLMLingua-2</th><td>3.37 &plusmn; 2.25</td><td>10.00 &plusmn; 0.51</td><td>41.31 &plusmn; 0.61</td><td>0.78 &plusmn; 0.01</td></tr>
+                  <tr><th scope="row">SnapKV</th><td>7.87 &plusmn; 1.12</td><td>40.00 &plusmn; 1.59</td><td>34.90 &plusmn; 1.18</td><td>0.54 &plusmn; 0.01</td></tr>
+                  <tr><th scope="row">Serial</th><td>5.62 &plusmn; 1.12</td><td>20.00 &plusmn; 2.34</td><td>38.31 &plusmn; 0.61</td><td>0.47 &plusmn; 0.00</td></tr>
+                  <tr><th scope="row">AgentDiet</th><td>11.24 &plusmn; 1.12</td><td>50.00 &plusmn; 3.76</td><td>33.48 &plusmn; 0.60</td><td>0.76 &plusmn; 0.04</td></tr>
+                  <tr class="ours-row"><th scope="row">LACING <span class="ours-label">ours</span></th><td>12.36 &plusmn; 2.25</td><td>70.00 &plusmn; 3.87</td><td>29.26 &plusmn; 0.71</td><td>0.74 &plusmn; 0.01</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="result-panel" data-backbone="qwen" data-benchmark="swe">
+            <h3>Qwen3-Coder &middot; SWE-bench Verified <span class="task-count">200-task subset</span></h3>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Qwen SWE-bench results">
+              <table class="results-table agent-table">
+                <caption class="sr-only">Qwen3-Coder-30B-A3B-Instruct on SWE-bench Verified. Mean and standard deviation over three runs.</caption>
+                <thead><tr><th scope="col">Method</th><th scope="col">Success (%) &uarr;</th><th scope="col">UP (%) &uarr;</th><th scope="col">GPU-s/task &darr;</th><th scope="col">Peak KV (GiB) &darr;</th></tr></thead>
+                <tbody>
+                  <tr class="reference-row"><th scope="row">Full-cache</th><td>28.50 &plusmn; 1.00</td><td>100.00 &plusmn; 0.00</td><td>81.88 &plusmn; 2.24</td><td>1.86 &plusmn; 0.05</td></tr>
+                  <tr><th scope="row">LLMLingua-2</th><td>6.00 &plusmn; 0.50</td><td>17.54 &plusmn; 1.15</td><td>70.06 &plusmn; 0.56</td><td>1.52 &plusmn; 0.05</td></tr>
+                  <tr><th scope="row">SnapKV</th><td>24.50 &plusmn; 0.50</td><td>52.63 &plusmn; 1.37</td><td>65.40 &plusmn; 1.27</td><td>0.53 &plusmn; 0.02</td></tr>
+                  <tr><th scope="row">Serial</th><td>2.50 &plusmn; 0.50</td><td>8.77 &plusmn; 1.94</td><td>51.31 &plusmn; 0.94</td><td>0.48 &plusmn; 0.00</td></tr>
+                  <tr><th scope="row">AgentDiet</th><td>28.00 &plusmn; 1.00</td><td>57.89 &plusmn; 0.39</td><td>53.11 &plusmn; 1.14</td><td>1.29 &plusmn; 0.02</td></tr>
+                  <tr class="ours-row"><th scope="row">LACING <span class="ours-label">ours</span></th><td>28.50 &plusmn; 0.50</td><td>61.40 &plusmn; 1.52</td><td>74.78 &plusmn; 2.39</td><td>1.13 &plusmn; 0.02</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="result-panel" data-backbone="devstral" data-benchmark="terminal">
+            <h3>Devstral-Small-2 &middot; Terminal-Bench 2.1 <span class="task-count">89 tasks</span></h3>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Devstral Terminal-Bench results">
+              <table class="results-table agent-table">
+                <caption class="sr-only">Devstral-Small-2-24B on Terminal-Bench 2.1. Mean and standard deviation over three runs.</caption>
+                <thead><tr><th scope="col">Method</th><th scope="col">Success (%) &uarr;</th><th scope="col">UP (%) &uarr;</th><th scope="col">GPU-s/task &darr;</th><th scope="col">Peak KV (GiB) &darr;</th></tr></thead>
+                <tbody>
+                  <tr class="reference-row"><th scope="row">Full-cache</th><td>21.35 &plusmn; 1.12</td><td>100.00 &plusmn; 0.00</td><td>584.78 &plusmn; 7.31</td><td>3.66 &plusmn; 0.06</td></tr>
+                  <tr><th scope="row">LLMLingua-2</th><td>8.99 &plusmn; 1.12</td><td>36.84 &plusmn; 3.45</td><td>704.32 &plusmn; 32.86</td><td>3.64 &plusmn; 0.05</td></tr>
+                  <tr><th scope="row">SnapKV</th><td>17.98 &plusmn; 1.12</td><td>73.68 &plusmn; 4.23</td><td>368.62 &plusmn; 10.24</td><td>1.10 &plusmn; 0.04</td></tr>
+                  <tr><th scope="row">Serial</th><td>5.62 &plusmn; 2.25</td><td>21.05 &plusmn; 0.46</td><td>418.08 &plusmn; 5.49</td><td>0.87 &plusmn; 0.02</td></tr>
+                  <tr><th scope="row">AgentDiet</th><td>17.98 &plusmn; 1.12</td><td>73.68 &plusmn; 5.07</td><td>597.74 &plusmn; 19.16</td><td>2.76 &plusmn; 0.07</td></tr>
+                  <tr class="ours-row"><th scope="row">LACING <span class="ours-label">ours</span></th><td>20.22 &plusmn; 1.12</td><td>73.68 &plusmn; 4.17</td><td>541.09 &plusmn; 13.83</td><td>2.16 &plusmn; 0.06</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="result-panel" data-backbone="devstral" data-benchmark="swe">
+            <h3>Devstral-Small-2 &middot; SWE-bench Verified <span class="task-count">200-task subset</span></h3>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Devstral SWE-bench results">
+              <table class="results-table agent-table">
+                <caption class="sr-only">Devstral-Small-2-24B on SWE-bench Verified. Mean and standard deviation over three runs.</caption>
+                <thead><tr><th scope="col">Method</th><th scope="col">Success (%) &uarr;</th><th scope="col">UP (%) &uarr;</th><th scope="col">GPU-s/task &darr;</th><th scope="col">Peak KV (GiB) &darr;</th></tr></thead>
+                <tbody>
+                  <tr class="reference-row"><th scope="row">Full-cache</th><td>48.50 &plusmn; 0.50</td><td>100.00 &plusmn; 0.00</td><td>999.23 &plusmn; 33.40</td><td>5.77 &plusmn; 0.02</td></tr>
+                  <tr><th scope="row">LLMLingua-2</th><td>7.50 &plusmn; 0.50</td><td>13.40 &plusmn; 1.57</td><td>546.90 &plusmn; 6.40</td><td>4.73 &plusmn; 0.11</td></tr>
+                  <tr><th scope="row">SnapKV</th><td>37.50 &plusmn; 1.00</td><td>59.79 &plusmn; 1.86</td><td>781.97 &plusmn; 3.30</td><td>1.06 &plusmn; 0.02</td></tr>
+                  <tr><th scope="row">Serial</th><td>6.00 &plusmn; 0.50</td><td>12.37 &plusmn; 0.40</td><td>642.60 &plusmn; 16.32</td><td>0.98 &plusmn; 0.04</td></tr>
+                  <tr><th scope="row">AgentDiet</th><td>19.50 &plusmn; 0.50</td><td>32.99 &plusmn; 1.51</td><td>249.12 &plusmn; 6.99</td><td>2.53 &plusmn; 0.04</td></tr>
+                  <tr class="ours-row"><th scope="row">LACING <span class="ours-label">ours</span></th><td>47.50 &plusmn; 0.50</td><td>74.23 &plusmn; 1.50</td><td>859.82 &plusmn; 24.66</td><td>2.59 &plusmn; 0.06</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <p class="table-note">Mean &plusmn; SD over 3 runs. <strong>Success</strong> measures task completion; <strong>UP</strong> measures retention of Full-cache's successful tasks. <strong>GPU-s/task</strong> is calibrated backbone inference cost, including prefill, decode, and actual recomputation; compression overhead is measured separately. Peak KV is the mean per-task peak GPU-resident KV memory.</p>
+        <div class="takeaway">
+          <h3>Less cached state can matter more than fewer generated tokens.</h3>
+          <p>On Qwen SWE-bench, LACING matches Full-cache's 28.5% success with 4.4% more output tokens. Cost per 1,000 output tokens falls from 9.62 to 8.41 GPU-s, outweighing the longer output and reducing total backbone cost by 8.7%.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-section" id="findings" aria-labelledby="findings-title">
+      <div class="page-container">
+        <h2 id="findings-title">What does the joint policy learn?</h2>
+        <p class="section-lead">Compression is a sequence of stateful choices. Its effects depend on the backbone, repeated opportunities, and feedback from later interactions.</p>
+        <div class="findings-layout">
+          <figure class="paper-figure behavior-figure">
+            <a class="figure-link" href="static/images/action-shares.svg" data-zoom data-caption="Keep, drop, and evict shares over eligible memory units." aria-label="Enlarge action-share analysis">
+              <img src="static/images/action-shares.svg" width="1000" height="871" loading="lazy" decoding="async" alt="Four panels show action shares by step. Qwen uses more eviction; Devstral is keep-dominated. Gray support strips show contributing task counts.">
+              <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+            </a>
+            <figcaption>Action shares average over eligible units and contributing tasks. Support strips show how many trajectories contribute at each step.</figcaption>
+          </figure>
+          <div class="finding-stack">
+            <article class="finding-card">
+              <p class="finding-kicker">Backbone-specific allocation</p>
+              <h3>Text and KV need different budgets.</h3>
+              <p>Qwen retains 94.91&ndash;98.38% of text but only 62.52&ndash;79.32% of KV bytes. Devstral reduces both views more extensively. One fixed head per backbone adapts across both benchmarks.</p>
+            </article>
+            <article class="finding-card">
+              <p class="finding-kicker">Repeated opportunities</p>
+              <h3>Keeping now can coexist with compression later.</h3>
+              <p>Devstral's SWE-bench policy chooses <code>keep</code> in 95.9% of eligible decisions, yet retains 67.46% of text and 57.43% of KV bytes. Action shares count repeated opportunities; retention measures the resulting history.</p>
+            </article>
+            <article class="finding-card">
+              <p class="finding-kicker">Localized feedback</p>
+              <h3>The same success count can hide different preservation.</h3>
+              <p>On Qwen Terminal-Bench, localized and uniform credit both solve 11 tasks. Localization raises UP from 50% to 70% and lowers backbone cost by 26.3%.</p>
+            </article>
+          </div>
+        </div>
+
+        <details class="analysis-details">
+          <summary>Action, feature, and credit ablations</summary>
+          <div class="details-content filterable-results">
+            <p>Each variant trains its own Qwen policy head. Feature ablations retain all three actions; uniform credit changes both cost and utility allocation.</p>
+            <div class="result-filters" hidden>
+              <label for="ablation-benchmark">Benchmark
+                <select id="ablation-benchmark" data-filter="benchmark">
+                  <option value="swe">SWE-bench Verified</option>
+                  <option value="terminal">Terminal-Bench 2.1</option>
+                </select>
+              </label>
+            </div>
+            <p class="sr-only" data-filter-status role="status"></p>
+            <div class="result-panel" data-benchmark="swe">
+              <h3>Qwen &middot; SWE-bench Verified</h3>
+              <div class="table-scroll" tabindex="0" role="region" aria-label="Qwen SWE-bench ablations">
+                <table class="results-table ablation-table">
+                  <caption class="sr-only">Qwen SWE-bench action, feature, and credit ablations.</caption>
+                  <thead><tr><th scope="col">Policy</th><th scope="col">Resolved tasks &uarr;</th><th scope="col">UP (%) &uarr;</th><th scope="col">GPU-s/task &darr;</th></tr></thead>
+                  <tbody>
+                    <tr class="ours-row"><th scope="row">LACING</th><td>57 / 200</td><td>61.40</td><td>74.779</td></tr>
+                    <tr><th scope="row">KV-only</th><td>55 / 200</td><td>59.65</td><td>76.620</td></tr>
+                    <tr><th scope="row">Text-only</th><td>48 / 200</td><td>45.61</td><td>79.525</td></tr>
+                    <tr><th scope="row">w/o text features</th><td>52 / 200</td><td>56.14</td><td>73.350</td></tr>
+                    <tr><th scope="row">w/o KV features</th><td>50 / 200</td><td>54.39</td><td>75.030</td></tr>
+                    <tr><th scope="row">Uniform credit</th><td>47 / 200</td><td>54.39</td><td>77.876</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="result-panel" data-benchmark="terminal">
+              <h3>Qwen &middot; Terminal-Bench 2.1</h3>
+              <div class="table-scroll" tabindex="0" role="region" aria-label="Qwen Terminal-Bench ablations">
+                <table class="results-table ablation-table">
+                  <caption class="sr-only">Qwen Terminal-Bench action, feature, and credit ablations.</caption>
+                  <thead><tr><th scope="col">Policy</th><th scope="col">Resolved tasks &uarr;</th><th scope="col">UP (%) &uarr;</th><th scope="col">GPU-s/task &darr;</th></tr></thead>
+                  <tbody>
+                    <tr class="ours-row"><th scope="row">LACING</th><td>11 / 89</td><td>70.00</td><td>29.257</td></tr>
+                    <tr><th scope="row">KV-only</th><td>12 / 89</td><td>70.00</td><td>34.669</td></tr>
+                    <tr><th scope="row">Text-only</th><td>9 / 89</td><td>60.00</td><td>36.823</td></tr>
+                    <tr><th scope="row">w/o text features</th><td>9 / 89</td><td>50.00</td><td>35.895</td></tr>
+                    <tr><th scope="row">w/o KV features</th><td>8 / 89</td><td>70.00</td><td>36.242</td></tr>
+                    <tr><th scope="row">Uniform credit</th><td>11 / 89</td><td>50.00</td><td>39.724</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p class="table-note">Ablation operating points from the manuscript. Joint selection improves the SWE-bench quality&ndash;cost balance over either single-side policy. On Terminal-Bench, KV-only solves one more task at higher cost and equal UP.</p>
+          </div>
+        </details>
+
+        <details class="analysis-details">
+          <summary>Full trajectories: where savings and execution changes appear</summary>
+          <div class="details-content">
+            <h3>Early savings are only part of the picture.</h3>
+            <p>LACING finishes below Full-cache in cumulative backbone cost across all four settings. LLMLingua-2 starts below Full-cache on both Terminal-Bench backbones, then finishes above it as later interactions overtake the early advantage.</p>
+            <figure class="paper-figure medium-figure">
+              <a class="figure-link" href="static/images/trajectory-cost.svg" data-zoom data-caption="Mean cumulative backbone cost on each method's own trajectories." aria-label="Enlarge cumulative backbone cost">
+                <img src="static/images/trajectory-cost.svg" width="950" height="628" loading="lazy" decoding="async" alt="Four plots compare mean cumulative backbone GPU-seconds across trajectory steps. LACING finishes below Full-cache in each model-benchmark setting.">
+                <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+              </a>
+              <figcaption>Each method follows its own observed trajectories. More interaction steps need not imply more backbone cost.</figcaption>
+            </figure>
+            <h3>Means and medians reveal different workloads.</h3>
+            <p>On Devstral SWE-bench, mean steps rise by 9.28 while the median falls by one. Long trajectories influence the mean; task-paired differences show the broader distribution.</p>
+            <figure class="paper-figure">
+              <a class="figure-link" href="static/images/trajectory-differences.svg" data-zoom data-caption="Task-paired differences in steps, tool calls, and output tokens relative to Full-cache." aria-label="Enlarge trajectory differences">
+                <img src="static/images/trajectory-differences.svg" width="1260" height="469" loading="lazy" decoding="async" alt="Boxplots show task-paired differences in agent steps, tool calls, and output tokens for five compression methods relative to Full-cache.">
+                <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+              </a>
+              <figcaption>Method minus Full-cache, paired by task. Boxes show IQR, median lines, 1.5-IQR whiskers, and all outliers.</figcaption>
+            </figure>
+            <h3>Execution symptoms complement aggregate success.</h3>
+            <p>LACING has fewer timeout-associated SWE-bench failures than the other compressors. Protocol parsing errors remain more frequent than with Full-cache, and symptoms can overlap within an unsuccessful trajectory.</p>
+            <figure class="paper-figure medium-figure">
+              <a class="figure-link" href="static/images/execution-symptoms.svg" data-zoom data-caption="Unsuccessful tasks exhibiting each execution symptom, as a percentage of the full task roster." aria-label="Enlarge execution symptom heatmaps">
+                <img src="static/images/execution-symptoms.svg" width="960" height="813" loading="lazy" decoding="async" alt="Four heatmaps compare execution symptoms across methods, including timeouts and repeated replies. Percentages use the complete task roster as denominator.">
+                <span class="zoom-hint" aria-hidden="true">Click to enlarge &nearr;</span>
+              </a>
+              <figcaption>Percentages use the full roster, not just failed tasks. Inapplicable Terminal-Bench categories are marked with dashes.</figcaption>
+            </figure>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="page-section alternate" id="retrieval" aria-labelledby="retrieval-title">
+      <div class="page-container">
+        <h2 id="retrieval-title">Beyond agents: preserving retrieval evidence</h2>
+        <p class="section-lead">Shared-context SCBench dialogues test whether compressed records and code remain useful to later queries.</p>
+        <div class="retrieval-highlights">
+          <article class="finding-card">
+            <p class="finding-kicker">Key-value and code retrieval</p>
+            <h3>Over 92% of reference successes retained.</h3>
+            <p>LACING preserves these successes across both retrieval backbones. Other compressors reach at most 16% UP on these tasks.</p>
+          </article>
+          <article class="finding-card">
+            <p class="finding-kicker">A preservation-first operating point</p>
+            <h3>Cost falls by 0.7% on average.</h3>
+            <p>The ten model&ndash;task groups use native retrieval calibration in GPU-s/query. Prefix&ndash;Suffix remains harder to preserve, with 20.0% and 85.1% UP.</p>
+          </article>
+        </div>
+        <div class="filterable-results">
+          <div class="result-filters" hidden>
+            <label for="retrieval-backbone">Retrieval backbone
+              <select id="retrieval-backbone" data-filter="backbone">
+                <option value="qwen-retrieval">Qwen3-30B-A3B-Instruct-2507</option>
+                <option value="glm">GLM-4-9B-Chat-1M</option>
+              </select>
+            </label>
+          </div>
+          <p class="sr-only" data-filter-status role="status"></p>
+          <div class="result-panel" data-backbone="qwen-retrieval">
+            <h3>Qwen3-30B-A3B-Instruct-2507</h3>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="Qwen SCBench retrieval results">
+              <table class="results-table retrieval-table">
+                <caption>Each cell: successes / UP (%) / GPU-s per query</caption>
+                <thead><tr><th scope="col">Method</th><th scope="col">KV<small>N = 500</small></th><th scope="col">Prefix&ndash;Suffix<small>N = 500</small></th><th scope="col">RepoQA<small>N = 160</small></th><th scope="col">Mix-KV<small>N = 128</small></th><th scope="col">Mix-RepoQA<small>N = 128</small></th></tr></thead>
+                <tbody>
+                  <tr class="reference-row"><th scope="row">Full-cache</th><td>500 / 100 / 55.998</td><td>10 / 100 / 53.540</td><td>118 / 100 / 41.876</td><td>117 / 100 / 15.010</td><td>100 / 100 / 33.227</td></tr>
+                  <tr><th scope="row">LLMLingua-2</th><td>2 / 0.4 / 26.783</td><td>1 / 0 / 32.824</td><td>17 / 13.6 / 36.638</td><td>0 / 0 / 14.363</td><td>16 / 16 / 30.069</td></tr>
+                  <tr><th scope="row">SnapKV</th><td>11 / 2.2 / 38.019</td><td>1 / 0 / 39.767</td><td>17 / 14.4 / 44.021</td><td>10 / 8.5 / 15.115</td><td>8 / 8 / 31.927</td></tr>
+                  <tr><th scope="row">Serial</th><td>0 / 0 / 23.784</td><td>0 / 0 / 32.621</td><td>7 / 5.9 / 37.314</td><td>0 / 0 / 12.625</td><td>2 / 2 / 36.605</td></tr>
+                  <tr class="ours-row"><th scope="row">LACING</th><td>492 / 98.4 / 55.694</td><td>11 / 20 / 53.216</td><td>117 / 97.5 / 41.170</td><td>114 / 96.6 / 14.574</td><td>98 / 98 / 32.647</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="result-panel" data-backbone="glm">
+            <h3>GLM-4-9B-Chat-1M</h3>
+            <div class="table-scroll" tabindex="0" role="region" aria-label="GLM SCBench retrieval results">
+              <table class="results-table retrieval-table">
+                <caption>Each cell: successes / UP (%) / GPU-s per query</caption>
+                <thead><tr><th scope="col">Method</th><th scope="col">KV<small>N = 500</small></th><th scope="col">Prefix&ndash;Suffix<small>N = 500</small></th><th scope="col">RepoQA<small>N = 160</small></th><th scope="col">Mix-KV<small>N = 128</small></th><th scope="col">Mix-RepoQA<small>N = 128</small></th></tr></thead>
+                <tbody>
+                  <tr class="reference-row"><th scope="row">Full-cache</th><td>85 / 100 / 27.114</td><td>222 / 100 / 38.179</td><td>108 / 100 / 43.021</td><td>106 / 100 / 12.691</td><td>84 / 100 / 34.341</td></tr>
+                  <tr><th scope="row">LLMLingua-2</th><td>0 / 0 / 13.337</td><td>10 / 1.8 / 12.013</td><td>10 / 6.5 / 20.228</td><td>0 / 0 / 7.992</td><td>9 / 8.3 / 17.052</td></tr>
+                  <tr><th scope="row">SnapKV</th><td>4 / 4.7 / 14.173</td><td>7 / 2.3 / 13.828</td><td>9 / 7.4 / 11.801</td><td>9 / 8.5 / 4.749</td><td>3 / 3.6 / 9.104</td></tr>
+                  <tr><th scope="row">Serial</th><td>0 / 0 / 6.531</td><td>1 / 0.5 / 6.195</td><td>4 / 1.9 / 9.720</td><td>0 / 0 / 3.613</td><td>1 / 1.2 / 7.286</td></tr>
+                  <tr class="ours-row"><th scope="row">LACING</th><td>79 / 92.9 / 26.944</td><td>210 / 85.1 / 37.855</td><td>101 / 93.5 / 45.100</td><td>99 / 92.5 / 12.564</td><td>84 / 95.2 / 33.777</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <p class="table-note">These are shared-context dialogues with generated history, without agents or tools. Retrieval and agent cost figures use their respective calibration protocols.</p>
+      </div>
+    </section>
+
+    <section class="page-section citation-section" id="citation" aria-labelledby="citation-title">
+      <div class="reading-container">
+        <div class="citation-heading">
+          <h2 id="citation-title">Citation</h2>
+          <button type="button" class="copy-button" id="copy-citation" hidden>Copy BibTeX</button>
+        </div>
+        <p class="citation-note">Project-page citation. Paper metadata will be added with the public release.</p>
+        <pre><code id="bibtex">@misc{lacing2026project,
+  title        = {LACING: Joint Prompt and KV-Cache
+                  Compression for Multi-Turn LLM Agents},
+  year         = {2026},
+  howpublished = {Project website},
+  url          = {https://stringing.github.io/LACING-project-page/}
+}</code></pre>
+        <p id="copy-status" class="copy-status" role="status"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <div class="reading-container">
+      <p><strong>LACING</strong> &middot; Joint Prompt and KV-Cache Compression for Multi-Turn LLM Agents</p>
+      <p>Academic page design inspired by <a href="https://yhtan777.github.io/CoHarden-project-page/" target="_blank" rel="noopener noreferrer">CoHarden</a>.
+        <a href="https://github.com/stringing/LACING-project-page" target="_blank" rel="noopener noreferrer">Page source</a>.</p>
+    </div>
+  </footer>
+
+  <dialog id="figure-dialog" aria-labelledby="figure-dialog-title">
+    <div class="dialog-toolbar">
+      <p id="figure-dialog-title"></p>
+      <div class="dialog-actions">
+        <button type="button" id="zoom-figure" aria-pressed="false">Zoom in</button>
+        <a id="original-figure" target="_blank" rel="noopener noreferrer">Open original &nearr;</a>
+        <button type="button" id="close-figure" aria-label="Close figure viewer">Close &times;</button>
+      </div>
+    </div>
+    <div class="dialog-viewport"><img id="figure-dialog-image" alt=""></div>
+  </dialog>
+</body>
+</html>
