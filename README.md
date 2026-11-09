@@ -26,7 +26,7 @@ Tables remain readable without JavaScript; figures link directly to their SVGs.
 ## Publication details
 
 Author information and public paper/arXiv/code links have not been supplied.
-Paper and Code buttons remain disabled until those resources are public.
+Paper, arXiv, and Code buttons remain disabled until those resources are public.
 No manuscript PDF, model weights, checkpoints, or experimental artifacts are
 included. The BibTeX currently cites this project website rather than an
 unreleased paper.
