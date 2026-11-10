@@ -28,8 +28,10 @@ Tables remain readable without JavaScript; figures link directly to their SVGs.
 
 Author names and order match the supplied manuscript metadata.
 Microsoft offices share one affiliation on the page, without location labels.
-Email addresses are not displayed in the page HTML; the PDF retains the
-manuscript's author information. Paper opens `static/papers/lacing.pdf` in a new
+Affiliations use 20px text, matching CoHarden, with the two approved contact
+email links underneath in 16px text. Other authors' emails are not displayed
+in the page HTML; the PDF retains the manuscript's author information.
+Paper opens `static/papers/lacing.pdf` in a new
 tab. This is the current full manuscript, uploaded at the project owner's request.
 The arXiv and Code buttons remain disabled, labeled "coming soon" and "under
 review", respectively. No model weights, checkpoints, or experimental artifacts
