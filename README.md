@@ -25,7 +25,9 @@ Tables remain readable without JavaScript; figures link directly to their SVGs.
 
 ## Publication details
 
-Author information and public paper/arXiv/code links have not been supplied.
+Author names, order, and affiliations match the supplied manuscript metadata.
+Email addresses are not displayed on this page. Public paper/arXiv/code links
+have not yet been supplied.
 Paper, arXiv, and Code buttons remain disabled until those resources are public.
 No manuscript PDF, model weights, checkpoints, or experimental artifacts are
 included. The BibTeX currently cites this project website rather than an
