@@ -25,7 +25,8 @@ Tables remain readable without JavaScript; figures link directly to their SVGs.
 
 ## Publication details
 
-Author names, order, and affiliations match the supplied manuscript metadata.
+Author names and order match the supplied manuscript metadata.
+Microsoft offices share one affiliation on the page, without location labels.
 Email addresses are not displayed on this page. Public paper/arXiv/code links
 have not yet been supplied.
 Paper, arXiv, and Code buttons remain disabled until those resources are public.
