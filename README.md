@@ -18,6 +18,7 @@ Open `http://localhost:8000`. No build step or package installation is required.
 - `static/css/index.css`: responsive layout and LACING's orange theme.
 - `static/js/index.js`: result filters, figure viewer, and citation copying.
 - `static/images/`: the seven manuscript figures, a social preview, and favicon.
+- `static/papers/lacing.pdf`: the full 16-page manuscript linked by Paper.
 
 The page uses Bulma 0.9.4 and Noto Sans via CDN, with local CSS and system-font
 fallbacks. All project assets use relative paths for GitHub Pages project URLs.
@@ -27,12 +28,12 @@ Tables remain readable without JavaScript; figures link directly to their SVGs.
 
 Author names and order match the supplied manuscript metadata.
 Microsoft offices share one affiliation on the page, without location labels.
-Email addresses are not displayed on this page. Public paper/arXiv/code links
-have not yet been supplied.
-Paper, arXiv, and Code buttons remain disabled until those resources are public.
-No manuscript PDF, model weights, checkpoints, or experimental artifacts are
-included. The BibTeX currently cites this project website rather than an
-unreleased paper.
+Email addresses are not displayed in the page HTML; the PDF retains the
+manuscript's author information. Paper opens `static/papers/lacing.pdf` in a new
+tab. This is the current full manuscript, uploaded at the project owner's request.
+The arXiv and Code buttons remain disabled, labeled "coming soon" and "under
+review", respectively. No model weights, checkpoints, or experimental artifacts
+are included. The BibTeX continues to cite this project website.
 
 ## Deployment
 
